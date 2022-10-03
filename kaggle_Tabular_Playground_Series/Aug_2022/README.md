@@ -51,6 +51,7 @@
    train, test의 loading 피처의 결측값을 127.23으로 대체!   
 
 <br>
+
 2. measurements 피처들간의 상관관계를 통해 결측값 대체!
   - product code 별 measurements3-9 피처들로 measurements17의 값을 HuberRegressor model로 대체
     train을 (measurement_n==결측치없음 & measurement_17==결측치없음)으로 두고   
@@ -60,7 +61,9 @@
     model.fit(tmp_train[column], tmp_train['measurement_17'])
     data.loc[(data.product_code==code)&(data[column].isnull().sum(axis=1)==0)&(data['measurement_17'].isnull()), 'measurement_17'] = model.predict(tmp_test[column])
     ```
+    
    <br>
+   
 3. measurements3, measurements5 결측값을 새로운 피처로 생성   
   -가설: 결측값의 유무가 타겟값의 확률에 영향을 끼치는가?
   -검증
