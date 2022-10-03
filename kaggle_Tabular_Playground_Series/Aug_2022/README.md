@@ -50,19 +50,52 @@
    
    train, test의 loading 피처의 결측값을 127.23으로 대체!   
 
-
+<br>
 2. measurements 피처들간의 상관관계를 통해 결측값 대체!
-  - product code 별 measurements3-9 피처들로 measurements17의 값을 선형회귀로 대체
+  - product code 별 measurements3-9 피처들로 measurements17의 값을 HuberRegressor model로 대체
+    train을 (measurement_n==결측치없음 & measurement_17==결측치없음)으로 두고   
+    test를  (measurement_n==결측치없음 & measurement_17==결측치있음)으로 두고 학습시켰다.
+    ```python
+    model = HuberRegressor(epsilon=1.9)
+    model.fit(tmp_train[column], tmp_train['measurement_17'])
+    data.loc[(data.product_code==code)&(data[column].isnull().sum(axis=1)==0)&(data['measurement_17'].isnull()), 'measurement_17'] = model.predict(tmp_test[column])
+    ```
+   <br>
+3. measurements3, measurements5 결측값을 새로운 피처로 생성   
+  -가설: 결측값의 유무가 타겟값의 확률에 영향을 끼치는가?
+  -검증
+  ```python
+  # 결측값인데 target==1인 경우의 수 / 결측값의 수
+  df[df["measurements3"].isna()]["target"].sum() / df[df["measurements3"].isna()].sum
+  # 그냥 target==1인 경우의 수 / 모든 경우의 수    == 0.212608
+  df["measurements3"]["target"].sum() / df["measurements3"].sum() 
+  ```
+  위의 값과 아래의 값의 각각의 확률분포가 같다면 타겟예측에 영향력이 없는 경우이고   
+  각각의 확률분포가 다르다면 타겟예측에 영향력이 있다고 판단할 수 있다.   
+  zscore를 통해 비교해보자
+  ```python
+  total = train[f].isna().sum()
+  fail = train[train[f].isna()].failure.sum()
+  z = (fail / total - 0.212608) / (np.sqrt(0.212608 * (1-0.212608)) / np.sqrt(total))
+  ```
+  zscore : 지금 값이 얼마나 흔한가에 대한 지표 (결측값일때 타겟값일 확률 - 그냥 타겟값의 확률) / 표준편차(이진분류라 베르누이분포의 표준편차=np(q-p)) / n^0.5   
+  measurement_3 zscore = -2.50, measurement_5 zscore =  2.66    
+  - 해석
+    z값이 작을수록 값이 가진 의미는 "결측치일때 타겟값이 1인 경우는 결측치 상관없이 무작위로 뽑을때의 확률과 비슷해, 흔해 라는 의미이고"   
+    z값이 큰 경우는 "결측치일때 타겟값이 1인 경우는 결측치 상관없이 무작위로 뽑을때의 확률과는 다른 분포를 보이고 있어" 라는 의미이다.
+    우리가 구한 zscore는 -2.5, 2.66이고 결측치 상관없이 무작위로 뽑을때 약 2% 미만의 확률로 우연히 결측치일때 타겟값이 1인 분포가 나온다고 말할 수 있다.(1종오류 유의)
+    따라서 유의수준 5%미만으로 둘은 다른 분포를 가지고있고 결측치는 그 자체로 타겟예측에 영향력이 있다고 말할수있다.
   
-  $$ X = -\frac{[{\sum_{i=4}^9} C_i X_i I(C_i>=0.1)] - \frac{X_17-b}{m}}{C} $$
-   
-3. RobustScaler   
-  StandardScaler와 비슷 하지만 평균과 분산대신 중간값(median)과 사분위값(quartile)을 사용 
-  이런 방식 때문에 RobustScaler 는 전체 데이터와 아주 동떨어진 데이터 포인트(예를 들면 측정 에러)에 영향을 받지 않음 
-  이런 이상 데이터를 이상라고 하며 다른 스케일 조정 기법에서는 문제가 될수 있음 
+    z score = (예측값 - 평균) / 표준편차
+    하지만 여러 샘플 이 있고 해당 샘플 평균의 표준 편차( 표준 오차 )를 설명하려면 다음 z 점수 공식을 사용합니다.
+    z score = (예측값 - 평균) / (표준편차/n**0.5)
+    키190 평균키170 표준편차3.5 키가 정규분포를 따를 때평균키가 190인 50명의 표본을 찾을 확률
+    (190 - 170) / (3.5 / 50^0.5)
+    <br>
 -------------------------------------------------------------------------------------------------------------------------
 회고
 -------------------------------------------------------------------------------------------------------------------------
 첫 캐글 도전으로 playground 대회에 참가했는데 379/1889 등을 했다.<br>
+통계적 기법을 직접 가설검증을 통해 구현하느라 수학공부의 필요성을 더 느끼게 되었다.<br>
 discussion탭을 통해서 처음보는 방법론을 이해하는데에 시간이 많이 들어서 내가 세운 가설을 검증하기에 시간이 부족했다.<br>
 다음 대회에서는 다른 사람의 검증된, 새로운 방법론도 좋지만 연습을 위한 대회인 만큼 내가 스스로 가설을 세우고 검증하는 프로세스를 더 많이 경험해 봐야겠다.
