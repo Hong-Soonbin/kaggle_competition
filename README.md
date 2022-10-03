@@ -1,1 +1,1 @@
-# kaggle_Tabular_Playground_Series
+# kaggle을 통한 공부
